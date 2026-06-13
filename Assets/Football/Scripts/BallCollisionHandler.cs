@@ -17,15 +17,15 @@ public class BallCollisionHandler : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
-        var ballVelocity = ball.velocity.magnitude;
+        var ballVelocity = ball.linearVelocity.magnitude;
 
         if (collision.gameObject.layer == LayerMask.NameToLayer($"Ball Limit Colliders"))
         {
             BallSoundPlayer.PlaySoundByVelocity(netAudioSource, netAudioClip, 1 + 12f / ballVelocity, ballVelocity, 3f);
 
-            while (ball.velocity.magnitude > 3f)
+            while (ball.linearVelocity.magnitude > 3f)
             {
-                ball.velocity *= 0.9f;
+                ball.linearVelocity *= 0.9f;
             }
         }
         
@@ -34,7 +34,7 @@ public class BallCollisionHandler : MonoBehaviour
             BallSoundPlayer.PlaySoundByVelocity(crossbarAudioSource, crossbarAudioClip, 1 + 5f / ballVelocity, ballVelocity, 1f);
         }
 
-        if (Mathf.Abs(ball.velocity.y) > 1f)
+        if (Mathf.Abs(ball.linearVelocity.y) > 1f)
         {
             if (collision.gameObject.layer == LayerMask.NameToLayer($"Grass"))
             {
