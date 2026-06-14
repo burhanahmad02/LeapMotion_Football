@@ -85,6 +85,13 @@ public class CrowdManager : MonoBehaviour
             var prefab = fanPrefabs[Random.Range(0, fanPrefabs.Length)];
             if (prefab == null) continue;
             var fan = Instantiate(prefab, transform);
+
+            // Imported model FBXs often contain embedded cameras / lights / audio listeners.
+            // Strip them, or dozens of crowd cameras hijack the screen.
+            foreach (var extraCam in fan.GetComponentsInChildren<Camera>(true)) DestroyImmediate(extraCam);
+            foreach (var al in fan.GetComponentsInChildren<AudioListener>(true)) DestroyImmediate(al);
+            foreach (var lt in fan.GetComponentsInChildren<Light>(true)) DestroyImmediate(lt);
+
             fan.transform.position = ordered[i];
 
             Vector3 look = target - ordered[i]; look.y = 0f;
