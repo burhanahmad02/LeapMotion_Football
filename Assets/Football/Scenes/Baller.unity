@@ -20895,21 +20895,18 @@ MonoBehaviour:
   - {x: 24.274544, y: 0.83755356, z: 21.964325}
   - {x: 22.447054, y: 3.6431413, z: 28.979584}
   - {x: 29.757004, y: 3.6431413, z: 28.979584}
-  fanScale: 1.2
-  bodyHeight: 0.8
-  shirtPalette:
-  - {r: 0.1, g: 0.45, b: 1, a: 1}
-  - {r: 1, g: 1, b: 1, a: 1}
-  - {r: 1, g: 0.55, b: 0.08, a: 1}
-  - {r: 1, g: 0.82, b: 0.2, a: 1}
-  - {r: 0.9, g: 0.2, b: 0.25, a: 1}
-  - {r: 0.2, g: 0.85, b: 0.95, a: 1}
-  skin: {r: 0.95, g: 0.78, b: 0.62, a: 1}
-  idleBob: 0.05
-  idleSpeed: 2
-  cheerHeight: 0.7
-  cheerSpeed: 11
-  reactionDuration: 2.2
+  fanPrefabs:
+  - {fileID: 919132149155446097, guid: 00ab2b57620e03249b6cf36674f058c4, type: 3}
+  - {fileID: 919132149155446097, guid: 43d202ca67740c743bb4802424de572f, type: 3}
+  - {fileID: 919132149155446097, guid: b9fb8f918595b2d4a8c89036edc1b3a3, type: 3}
+  crowdController: {fileID: 9100000, guid: 449c5741a30bd1648b31fb98d14a4862, type: 2}
+  cheerTrigger: cheer
+  maxFans: 90
+  fanHeight: 1.8
+  sortCamera: {fileID: 425878210}
+  faceTarget: {fileID: 2703596218435902267}
+  yawOffset: 0
+  yawJitter: 18
 --- !u!4 &1673148143
 Transform:
   m_ObjectHideFlags: 0

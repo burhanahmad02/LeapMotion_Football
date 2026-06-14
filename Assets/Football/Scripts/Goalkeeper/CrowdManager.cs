@@ -66,7 +66,15 @@ public class CrowdManager : MonoBehaviour
         if (cam != null)
         {
             Vector3 cp = cam.transform.position;
-            ordered.Sort((a, b) => Vector3.SqrMagnitude(a - cp).CompareTo(Vector3.SqrMagnitude(b - cp)));
+            Vector3 fwd = cam.transform.forward;
+            // prefer seats IN FRONT of the camera (visible), nearest first; push behind-camera seats to the back
+            float Key(Vector3 p)
+            {
+                Vector3 d = p - cp;
+                float front = Vector3.Dot(d.normalized, fwd);
+                return d.magnitude + (front < 0.15f ? 100000f : 0f);
+            }
+            ordered.Sort((a, b) => Key(a).CompareTo(Key(b)));
         }
         int count = Mathf.Min(maxFans, ordered.Count);
         Vector3 target = faceTarget != null ? faceTarget.position : new Vector3(0f, 0f, 0f);
