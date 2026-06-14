@@ -47,6 +47,12 @@ public class GameManager : MonoBehaviour
     public event System.Action OnSave;
     public event System.Action OnGoal;
 
+    // Read-only accessors for displays (e.g. the stadium scoreboard).
+    public string PlayerName => playerName;
+    public int Saves => saves;
+    public int Misses => misses;
+    public int ShotsTaken => shotsTaken;
+
     private string playerName = "Player";
     private int saves;
     private int misses;
