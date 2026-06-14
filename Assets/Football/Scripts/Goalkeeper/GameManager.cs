@@ -41,6 +41,12 @@ public class GameManager : MonoBehaviour
     [SerializeField] private float savesForMaxDifficulty = 10f;
     [SerializeField] private int leaderboardTopN = 5;
 
+    // Juice hooks. Decoupled listeners (e.g. GameFeel) subscribe to these; the
+    // GameManager never needs to know who is listening.
+    public event System.Action OnShoot;
+    public event System.Action OnSave;
+    public event System.Action OnGoal;
+
     private string playerName = "Player";
     private int saves;
     private int misses;
@@ -121,6 +127,8 @@ public class GameManager : MonoBehaviour
             striker.TriggerShot();
         }
 
+        OnShoot?.Invoke();
+
         if (timeoutRoutine != null) StopCoroutine(timeoutRoutine);
         timeoutRoutine = StartCoroutine(ShotTimeout());
     }
@@ -142,11 +150,13 @@ public class GameManager : MonoBehaviour
                 saves++;
                 if (striker != null) striker.ReactToSave();
                 if (ui != null) ui.FlashResult("SAVE!", Color.green);
+                OnSave?.Invoke();
                 break;
             case Outcome.Goal:
                 misses++;
                 if (striker != null) striker.ReactToGoal();
                 if (ui != null) ui.FlashResult("GOAL!", Color.red);
+                OnGoal?.Invoke();
                 break;
             case Outcome.Wide:
                 if (ui != null) ui.FlashResult("MISSED!", Color.yellow);

@@ -39,6 +39,9 @@ public class UIManager : MonoBehaviour
     [SerializeField] private float stepDuration = 0.7f;
     [SerializeField] private float popScale = 1.6f;
 
+    /// <summary>Raised once per countdown step (3, 2, 1, SHOOT!). FeelManager listens to punch the text + play a tick sound.</summary>
+    public event System.Action OnCountdownTick;
+
     private readonly List<GameObject> spawnedRows = new List<GameObject>();
 
     private void Awake()
@@ -86,6 +89,7 @@ public class UIManager : MonoBehaviour
             foreach (var step in countdownSteps)
             {
                 countdownText.text = step;
+                OnCountdownTick?.Invoke();
                 yield return PopText(countdownText.rectTransform, stepDuration);
             }
             countdownText.text = string.Empty;
