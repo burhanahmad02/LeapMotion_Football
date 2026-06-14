@@ -107,6 +107,7 @@ public class UIManager : MonoBehaviour
     private IEnumerator FlashRoutine(string message, Color color)
     {
         resultText.text = message;
+        resultText.enableVertexGradient = false; // show the distinct save/goal colour, not the editor gradient
         resultText.color = color;
         yield return PopText(resultText.rectTransform, 0.4f);
         yield return new WaitForSeconds(1.0f);

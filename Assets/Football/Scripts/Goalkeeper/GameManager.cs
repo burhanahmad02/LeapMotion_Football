@@ -149,13 +149,13 @@ public class GameManager : MonoBehaviour
             case Outcome.Save:
                 saves++;
                 if (striker != null) striker.ReactToSave();
-                if (ui != null) ui.FlashResult("SAVE!", Color.green);
+                if (ui != null) ui.FlashResult("SUPER SAVE!", new Color(0.2f, 1f, 0.55f));
                 OnSave?.Invoke();
                 break;
             case Outcome.Goal:
                 misses++;
                 if (striker != null) striker.ReactToGoal();
-                if (ui != null) ui.FlashResult("GOAL!", Color.red);
+                if (ui != null) ui.FlashResult("GOAL!", new Color(1f, 0.3f, 0.2f));
                 OnGoal?.Invoke();
                 break;
             case Outcome.Wide:
