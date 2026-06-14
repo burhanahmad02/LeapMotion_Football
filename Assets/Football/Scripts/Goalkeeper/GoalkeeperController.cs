@@ -40,6 +40,12 @@ public class GoalkeeperController : MonoBehaviour
     // Current centre of the two-hand rig on the goal plane (x = horizontal, y = vertical).
     private Vector2 center;
 
+    // When false, input is ignored (e.g. during registration / game over).
+    private bool controlEnabled = true;
+
+    /// <summary>Enable or disable player input for the keeper.</summary>
+    public void SetControlEnabled(bool enabled) => controlEnabled = enabled;
+
     private void Start()
     {
         if (controlCamera == null)
@@ -51,6 +57,8 @@ public class GoalkeeperController : MonoBehaviour
 
     private void Update()
     {
+        if (!controlEnabled) return;
+
         // Read input in Update for responsiveness; physics move happens in FixedUpdate.
         switch (controlMode)
         {

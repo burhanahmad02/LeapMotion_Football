@@ -1,132 +1,183 @@
-using UnityEngine;
 using System.Collections;
-using TMPro;
+using UnityEngine;
 
 /// <summary>
-/// Drives the save/goal game loop:
-///   - Resets the ball and tells the AI striker to shoot.
-///   - Listens for "save" (ball touched the keeper hands) and "goal" (ball crossed the line).
-///   - Tracks the save score and updates the UI.
-///   - Resolves each shot exactly once, then queues the next one.
+/// Central game state machine:
+///   Registration -> Countdown -> Shooting -> Result -> (next shot | GameOver)
 ///
-/// The small forwarder components (<see cref="KeeperHand"/>, <see cref="GoalTrigger"/>)
-/// report events to this singleton.
+/// Owns the score for the current turn, drives the AI striker, resolves each shot exactly
+/// once, and hands the final result to the leaderboard. UI is fully delegated to UIManager.
 /// </summary>
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
+    public enum GameState { Registration, Countdown, Shooting, Result, GameOver }
+    public GameState State { get; private set; }
+
+    private enum Outcome { Save, Goal, Wide }
+
     [Header("References")]
-    [SerializeField] private AIStriker striker;
+    [SerializeField] private AIStrikerController striker;
+    [SerializeField] private GoalkeeperController goalkeeper;
+    [SerializeField] private UIManager ui;
+    [SerializeField] private LeaderboardManager leaderboard;
     [SerializeField] private Rigidbody ball;
     [SerializeField] private Transform ballSpawn;
 
-    [Header("UI (TextMeshPro)")]
-    [SerializeField] private TMP_Text saveText;
-    [SerializeField] private TMP_Text goalText;
-    [SerializeField] private TMP_Text resultText; // optional "SAVE!" / "GOAL!" flash
+    [Header("Turn Rules")]
+    [Tooltip("Total shots the AI takes in one turn.")]
+    [SerializeField] private int shotsPerTurn = 5;
+    [Tooltip("Also end the turn early after this many goals conceded.")]
+    [SerializeField] private bool endOnMisses = true;
+    [SerializeField] private int maxMisses = 3;
 
     [Header("Timing")]
-    [Tooltip("Delay after a shot resolves before the next shot starts.")]
-    [SerializeField] private float delayBetweenShots = 2f;
-    [Tooltip("If a shot neither scores nor is saved within this time, it counts as a miss and resets.")]
+    [SerializeField] private float resultDisplayTime = 1.8f;
+    [Tooltip("If a shot neither scores nor is saved (wide/over) within this time, move on.")]
     [SerializeField] private float shotTimeout = 4f;
-    [SerializeField] private float startupDelay = 1.5f;
 
-    [Header("Difficulty Ramp")]
-    [Tooltip("Number of saves needed to reach maximum difficulty.")]
-    [SerializeField] private int savesForMaxDifficulty = 10;
+    [Header("Difficulty / Leaderboard")]
+    [SerializeField] private float savesForMaxDifficulty = 10f;
+    [SerializeField] private int leaderboardTopN = 5;
 
-    private int saveScore;
-    private int goalScore;
-    private bool shotResolved = true; // true = no active shot
+    private string playerName = "Player";
+    private int saves;
+    private int misses;
+    private int shotsTaken;
+    private bool shotResolved = true;
     private Coroutine timeoutRoutine;
 
     private void Awake()
     {
-        // Simple singleton so forwarders can reach the manager.
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
+        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
     }
 
-    private void Start()
+    private void Start() => EnterRegistration();
+
+    // ---------------- Registration ----------------
+
+    public void EnterRegistration()
     {
-        UpdateUI();
-        if (resultText != null) resultText.text = string.Empty;
-        Invoke(nameof(BeginShot), startupDelay);
+        State = GameState.Registration;
+        ResetBall();
+        if (goalkeeper != null) goalkeeper.SetControlEnabled(false);
+        if (ui != null) ui.ShowRegistration();
     }
 
-    /// <summary>Resets the ball and asks the striker to take a shot.</summary>
-    public void BeginShot()
+    /// <summary>Called by UIManager when the player submits a name.</summary>
+    public void StartTurn(string name)
     {
+        playerName = string.IsNullOrWhiteSpace(name) ? "Player" : name.Trim();
+        saves = 0;
+        misses = 0;
+        shotsTaken = 0;
+
+        if (goalkeeper != null) goalkeeper.SetControlEnabled(true);
+        if (ui != null) { ui.ShowGameHUD(); ui.UpdateScore(saves, shotsTaken, shotsPerTurn); }
+
+        BeginNextShot();
+    }
+
+    // ---------------- Shot cycle ----------------
+
+    private void BeginNextShot()
+    {
+        if (IsTurnOver()) { EndTurn(); return; }
+        StartCoroutine(CountdownThenShoot());
+    }
+
+    private bool IsTurnOver()
+    {
+        if (shotsTaken >= shotsPerTurn) return true;
+        if (endOnMisses && misses >= maxMisses) return true;
+        return false;
+    }
+
+    private IEnumerator CountdownThenShoot()
+    {
+        State = GameState.Countdown;
         ResetBall();
 
+        bool done = false;
+        if (ui != null) ui.PlayCountdown(() => done = true);
+        else done = true;
+
+        while (!done) yield return null;
+        DoShot();
+    }
+
+    private void DoShot()
+    {
+        State = GameState.Shooting;
         shotResolved = false;
+        shotsTaken++;
+
         if (striker != null)
         {
-            // Ramp difficulty with the number of saves made so far.
-            float difficulty = savesForMaxDifficulty > 0
-                ? Mathf.Clamp01((float)saveScore / savesForMaxDifficulty)
-                : 0f;
-            striker.SetDifficulty(difficulty);
+            float d = savesForMaxDifficulty > 0 ? Mathf.Clamp01(saves / savesForMaxDifficulty) : 0f;
+            striker.SetDifficulty(d);
             striker.TriggerShot();
         }
 
-        // Safety net: if the ball goes wide/over and nothing fires, recover.
         if (timeoutRoutine != null) StopCoroutine(timeoutRoutine);
         timeoutRoutine = StartCoroutine(ShotTimeout());
     }
 
-    /// <summary>Called by KeeperHand when the ball contacts a keeper cube.</summary>
-    public void OnBallSaved()
+    // Called by KeeperHand / GoalTrigger.
+    public void OnBallSaved() => Resolve(Outcome.Save);
+    public void OnBallEnteredGoal() => Resolve(Outcome.Goal);
+
+    private void Resolve(Outcome outcome)
     {
-        if (shotResolved) return;
+        if (shotResolved || State != GameState.Shooting) return;
         shotResolved = true;
-
-        saveScore++;
-        UpdateUI();
-        Flash("SAVE!", Color.green);
-
-        QueueNextShot();
-    }
-
-    /// <summary>Called by GoalTrigger when the ball crosses the goal line.</summary>
-    public void OnBallEnteredGoal()
-    {
-        if (shotResolved) return;
-        shotResolved = true;
-
-        goalScore++;
-        UpdateUI();
-        Flash("GOAL!", Color.red);
-
-        QueueNextShot();
-    }
-
-    /// <summary>Ball went wide/over without resolving — just reset, no score change.</summary>
-    private void OnShotMissed()
-    {
-        if (shotResolved) return;
-        shotResolved = true;
-        QueueNextShot();
-    }
-
-    private void QueueNextShot()
-    {
+        State = GameState.Result;
         if (timeoutRoutine != null) StopCoroutine(timeoutRoutine);
-        CancelInvoke(nameof(BeginShot));
-        Invoke(nameof(BeginShot), delayBetweenShots);
+
+        switch (outcome)
+        {
+            case Outcome.Save:
+                saves++;
+                if (striker != null) striker.ReactToSave();
+                if (ui != null) ui.FlashResult("SAVE!", Color.green);
+                break;
+            case Outcome.Goal:
+                misses++;
+                if (striker != null) striker.ReactToGoal();
+                if (ui != null) ui.FlashResult("GOAL!", Color.red);
+                break;
+            case Outcome.Wide:
+                if (ui != null) ui.FlashResult("MISSED!", Color.yellow);
+                break;
+        }
+
+        if (ui != null) ui.UpdateScore(saves, shotsTaken, shotsPerTurn);
+
+        CancelInvoke(nameof(BeginNextShot));
+        Invoke(nameof(BeginNextShot), resultDisplayTime);
     }
 
     private IEnumerator ShotTimeout()
     {
         yield return new WaitForSeconds(shotTimeout);
-        OnShotMissed();
+        Resolve(Outcome.Wide); // wide/over: neither a save nor a goal
     }
+
+    // ---------------- End of turn ----------------
+
+    private void EndTurn()
+    {
+        State = GameState.GameOver;
+        if (goalkeeper != null) goalkeeper.SetControlEnabled(false);
+        if (leaderboard != null) leaderboard.AddScore(playerName, saves);
+        if (ui != null && leaderboard != null)
+            ui.ShowLeaderboard(leaderboard.GetTop(leaderboardTopN), playerName, saves);
+    }
+
+    /// <summary>Called by UIManager's Play Again button.</summary>
+    public void PlayAgain() => EnterRegistration();
 
     private void ResetBall()
     {
@@ -134,27 +185,6 @@ public class GameManager : MonoBehaviour
         ball.Sleep();
         ball.linearVelocity = Vector3.zero;
         ball.angularVelocity = Vector3.zero;
-        if (ballSpawn != null)
-            ball.position = ballSpawn.position;
-    }
-
-    private void UpdateUI()
-    {
-        if (saveText != null) saveText.text = $"Saves: {saveScore}";
-        if (goalText != null) goalText.text = $"Goals: {goalScore}";
-    }
-
-    private void Flash(string message, Color color)
-    {
-        if (resultText == null) return;
-        resultText.text = message;
-        resultText.color = color;
-        CancelInvoke(nameof(ClearFlash));
-        Invoke(nameof(ClearFlash), 1.2f);
-    }
-
-    private void ClearFlash()
-    {
-        if (resultText != null) resultText.text = string.Empty;
+        if (ballSpawn != null) ball.position = ballSpawn.position;
     }
 }
