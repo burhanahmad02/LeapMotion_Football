@@ -21,17 +21,22 @@ public class DayNightController : MonoBehaviour
 
     [Header("Sun")]
     public float maxSunIntensity = 1.25f;
+    [Tooltip("Brightness floor so night is moonlit, never pitch black (0..1).")]
+    [Range(0f,1f)] public float minLight = 0.5f;
+    [Tooltip("Sun never drops below this elevation, so it always lights from above.")]
+    public float minSunElevation = 14f;
     public Color dayColor = new Color(1f, 0.96f, 0.86f);
     public Color duskColor = new Color(1f, 0.55f, 0.32f);
+    public Color nightSunColor = new Color(0.55f, 0.64f, 0.9f);   // cool moonlight
 
     [Header("Floodlights / Sky")]
-    public float maxFloodIntensity = 1.5f;
+    public float maxFloodIntensity = 1.6f;
     public float skyDayExposure = 1.3f;
-    public float skyNightExposure = 0.55f;
+    public float skyNightExposure = 0.75f;
 
-    [Header("Ambient floor (keeps the crowd/stands visible)")]
-    public Color dayAmbient = new Color(0.55f, 0.57f, 0.62f);
-    public Color nightAmbient = new Color(0.24f, 0.26f, 0.34f);
+    [Header("Ambient floor (keeps everything visible)")]
+    public Color dayAmbient = new Color(0.58f, 0.60f, 0.65f);
+    public Color nightAmbient = new Color(0.34f, 0.37f, 0.46f);
 
     private float _giTimer;
 
@@ -51,19 +56,21 @@ public class DayNightController : MonoBehaviour
 
     private void Apply(bool updateGI)
     {
-        float pitch = timeOfDay * 360f - 90f;
-        if (sun) sun.transform.rotation = Quaternion.Euler(pitch, sunYaw, 0f);
+        float noon = Mathf.Cos((timeOfDay - 0.5f) * 2f * Mathf.PI); // 1 at noon, -1 at midnight
+        float day = Mathf.InverseLerp(-1f, 1f, noon);               // 0 night .. 1 noon
+        float elevation = Mathf.Lerp(minSunElevation, 82f, day);    // sun always above the horizon
+        if (sun) sun.transform.rotation = Quaternion.Euler(elevation, sunYaw, 0f);
 
-        float altitude = Mathf.Sin(pitch * Mathf.Deg2Rad);     // -1..1
-        float day = Mathf.Clamp01(altitude * 1.1f + 0.15f);    // soft dawn/dusk
+        float lit = Mathf.Lerp(minLight, 1f, day);                  // brightness floor: never pitch black
         float night = 1f - day;
-        float dusk = Mathf.Clamp01(1f - Mathf.Abs(altitude) * 3f); // peaks near the horizon
+        float dusk = Mathf.Clamp01(1f - Mathf.Abs(noon) * 2.2f);    // warm glow near dawn/dusk
 
         if (sun)
         {
-            sun.intensity = day * maxSunIntensity;
-            sun.color = Color.Lerp(dayColor, duskColor, dusk);
-            sun.enabled = sun.intensity > 0.02f;
+            sun.intensity = lit * maxSunIntensity;
+            Color baseCol = Color.Lerp(nightSunColor, dayColor, day);
+            sun.color = Color.Lerp(baseCol, duskColor, dusk);
+            sun.enabled = true;
         }
         if (skybox) skybox.SetFloat("_Exposure", Mathf.Lerp(skyNightExposure, skyDayExposure, day));
         if (floodlights != null)
@@ -72,6 +79,6 @@ public class DayNightController : MonoBehaviour
 
         // Flat ambient floor so the stands/crowd never go pitch black at night
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-        RenderSettings.ambientLight = Color.Lerp(nightAmbient, dayAmbient, day);
+        RenderSettings.ambientLight = Color.Lerp(nightAmbient, dayAmbient, lit);
     }
 }
