@@ -49,9 +49,13 @@ public class GameManager : MonoBehaviour
 
     // Read-only accessors for displays (e.g. the stadium scoreboard).
     public string PlayerName => playerName;
+    public string PlayerEmail => playerEmail;
     public int Saves => saves;
     public int Misses => misses;
     public int ShotsTaken => shotsTaken;
+
+    [SerializeField] private EmailService emailService;
+    private string playerEmail = "";
 
     private string playerName = "Player";
     private int saves;
@@ -79,9 +83,10 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>Called by UIManager when the player submits a name.</summary>
-    public void StartTurn(string name)
+    public void StartTurn(string name, string email = "")
     {
         playerName = string.IsNullOrWhiteSpace(name) ? "Player" : name.Trim();
+        playerEmail = email != null ? email.Trim() : "";
         saves = 0;
         misses = 0;
         shotsTaken = 0;
@@ -190,6 +195,7 @@ public class GameManager : MonoBehaviour
         if (leaderboard != null) leaderboard.AddScore(playerName, saves);
         if (ui != null && leaderboard != null)
             ui.ShowLeaderboard(leaderboard.GetTop(leaderboardTopN), playerName, saves);
+        if (emailService != null) emailService.SendResult(playerName, playerEmail, saves, shotsTaken);
     }
 
     /// <summary>Called by UIManager's Play Again button.</summary>

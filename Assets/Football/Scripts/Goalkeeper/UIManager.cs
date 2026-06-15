@@ -19,6 +19,8 @@ public class UIManager : MonoBehaviour
 
     [Header("Registration")]
     [SerializeField] private TMP_InputField nameInput;
+    [SerializeField] private TMP_InputField emailInput;
+    [SerializeField] private TMP_Text warningText;
     [SerializeField] private Button startButton;
 
     [Header("HUD")]
@@ -60,6 +62,7 @@ public class UIManager : MonoBehaviour
         SetActive(leaderboardPanel, false);
         if (resultText != null) resultText.text = string.Empty;
         if (countdownText != null) countdownText.text = string.Empty;
+        if (warningText != null) warningText.text = string.Empty;
     }
 
     public void ShowGameHUD()
@@ -165,8 +168,18 @@ public class UIManager : MonoBehaviour
 
     private void OnStartClicked()
     {
-        string n = nameInput != null ? nameInput.text : "Player";
-        if (GameManager.Instance != null) GameManager.Instance.StartTurn(n);
+        string n = nameInput != null ? nameInput.text.Trim() : "";
+        string e = emailInput != null ? emailInput.text.Trim() : "";
+        if (string.IsNullOrEmpty(n)) { ShowWarning("Please enter your name."); return; }
+        if (!EmailService.LooksLikeEmail(e)) { ShowWarning("Please enter a valid email."); return; }
+        if (warningText != null) warningText.text = string.Empty;
+        if (GameManager.Instance != null) GameManager.Instance.StartTurn(n, e);
+    }
+
+    private void ShowWarning(string msg)
+    {
+        if (warningText != null) { warningText.gameObject.SetActive(true); warningText.text = msg; }
+        else Debug.LogWarning("[UI] " + msg);
     }
 
     private void OnPlayAgainClicked()
